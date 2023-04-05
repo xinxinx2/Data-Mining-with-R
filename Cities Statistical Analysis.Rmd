@@ -1,0 +1,205 @@
+---
+title: "Statistical Analysis For Dataset Cities"
+author: "Xinxin Xu USC ID 4205459366"
+date: "2023-02-20"
+output: pdf_document
+---
+
+```{r}
+# import data
+library(readxl)
+df <- read_excel("cities1.xlsx")
+
+library(cluster)  # silohuette()
+library(factoextra)
+#
+str(df)
+head(df)
+```
+
+```{r}
+#drop character
+df= as.data.frame(df)
+df$Crime_Trend = NULL
+df$Unemployment_Threat = NULL
+row.names(df) = df$Metropolitan_Area
+df$Metropolitan_Area = NULL
+head(df,5)
+```
+
+```{r}
+# scale data (always for distance-based methods)
+df_scale = scale(df)
+```  
+
+```{r}
+#  Use set.seed(123) and the user function twcv to find TWCV values for k = 1 : 16. Use nstart = 25. Display the elbow chart.
+
+set.seed(123)
+twcv = function(k) kmeans(df_scale, k, nstart = 25 )$tot.withinss
+k <- 1:16
+twcv_values <- sapply(k,twcv)
+head(twcv_values)
+plot(k, twcv_values,type="b",pch = 19, 
+     xlab="Number of clusters K",ylab="TWCV")
+grid()
+```
+
+
+```{r}
+#The best number of clusters is the smallest k such that the cluster plot shows the least amount of clusters overlap. Use fviz_cluster( ) with argument geom = ”point” to display cluster plots with no label names. Try fviz_cluster( ) with different K. What is the best K? For this K find the number of cities in each cluster.
+final6 <- kmeans(df_scale, center = 6, nstart = 25)
+fviz_cluster(final6, data = df_scale, geom = 'point')
+
+final4 <- kmeans(df_scale, center = 4, nstart = 25)
+fviz_cluster(final4, data = df_scale, geom = 'point')
+
+final3 <- kmeans(df_scale, center = 3, nstart = 25)
+fviz_cluster(final3, data = df_scale, geom = 'point')
+
+final2 <- kmeans(df_scale, center = 2, nstart = 25)
+fviz_cluster(final2, data = df_scale, geom = 'point')
+
+## I find the best value of K (the optimal number of clusters) is 4
+cluster_number = final4$cluster
+table(cluster_number)
+length(cluster_number)
+m1 = prcomp(df_scale, scale = T)
+fviz_pca_biplot(m1, labelsize = 1, col.var = 'black', habillage = cluster_number)
+```
+
+
+```{r}
+# I chose clustering with k = 4
+#
+set.seed(123)
+final <- kmeans(df_scale,centers = 4,nstart = 25)
+final
+
+fviz_cluster(final,data = df_scale)
+# add cluster number to dataframe
+#
+cluster_number = as.factor(final$cluster)
+df$cluster = cluster_number
+head(df)
+
+# biplot with clusters
+#
+m3 = prcomp(df_scale, scale=T)
+fviz_pca_biplot(m3,labelsize = 2,col.var = "red",
+                habillage = cluster_number)
+```
+
+
+
+```{r}
+# For my choice of K clusters, find the median (or mean, if you prefer) of each numerical column (on the original un-scaled dataset). 
+
+df = lapply(df,as.numeric)
+aggregate(df, list(cluster_number), median)
+
+## Group (cluster) 1 & 2 have high rate on every category except cost of living and crime
+## Group (cluster) 3 has high crime 
+## Group (cluster) 4 has high rates on cost of living
+
+```
+
+
+
+
+```{r}
+
+# Use function hclust with linkage ward.D to create object h1 and display the four clusters on the dendrogram. Use function cuttree( ) to find the clusters. Find the number of cities in each cluster. Use fviz_cluster( ) with argument geom = ”point” to display the cluster plots of your choice with no label names. Find the CCPC for ward.D
+
+# Find distances
+distance = dist(df_scale)
+
+# Dendrogram - Ward
+h1 = hclust(distance, method = 'ward.D')
+plot(h1, cex = 0.4, xlab = '', main = 'ward.D', ylab = '')
+rect.hclust(h1, k = 4, border = 'red')
+
+# CUT the dendrograms to 4 clusters
+cut1 = cutree(h1,k=4)
+# dataframe with cluster numbers
+df1 = data.frame(df,cluster = cut1)
+# number of members per cluster
+table(cut1)
+
+
+# library factoextra
+library(factoextra)
+
+# cluster plots for Ward linkage
+fviz_cluster(list(data = df_scale, cluster = cut1),geom = 'point', main="Ward linkage", ellipse.type = 'norm',
+             palette = "Set2",
+             ggtheme = theme_minimal()
+             )
+
+# CPCC = correlation (euclidean distances, cophenetic distances)
+c1 = cophenetic(h1)
+cor(distance, c1)
+```
+
+```{r}
+# Use function hclust with linkage complete to create object h2 and display the four clusters on the dendrogram. Use function cuttree( ) to find the clusters. Find the number of cities in each cluster. Use fviz_cluster( ) with argument geom = ”point” to display the cluster plots of your choice with no label names. Find the CCPC for complete linkage.
+
+h2 = hclust(distance, method ='complete')
+cut2 = cutree(h2,k=4)
+# number of members per cluster
+table(cut2)
+
+# dendrogram - complete linkage
+plot(h2, cex = 0.4, xlab = '', main = 'Complete', ylab = '')
+rect.hclust(h2, k = 4, border = 'red')
+
+# cluster plots for complete linkage
+fviz_cluster(list(data = df_scale, cluster = cut2), geom = 'point', 
+              main = 'complete linkage',
+              palatte = 'Set2', ggtheme = theme_minimal())
+
+
+# COPHENETIC distances
+c2 = cophenetic(h2)
+# CPCC = correlation (euclidean distances, cophenetic distances)
+cor(distance,c2)
+```
+
+```{r}
+
+# Use function hclust with linkage average to create object h3 and display the four clusters on the dendrogram. Use function cuttree( ) to find the clusters. Find the number of cities in each cluster. Use fviz_cluster( ) with argument geom = ”point” to display the cluster plots of your choice with no label names. Find the CCPC for average linkage
+
+# dendrogram - complete linkage
+h3 = hclust(distance, method = 'average')
+plot(h3, cex = 0.4, xlab = '', main = 'average', ylab = '')
+rect.hclust(h3, k = 4, border = 'red')
+
+# number of members per cluster
+cut3 = cutree(h3, k = 4)
+table(cut3)
+
+# cluster plots for average linkage
+fviz_cluster(list(data = df_scale, cluster = cut3), geom = 'point', 
+             main = 'average', palatte = 'Set2', ggtheme = theme_minimal())
+
+
+# CPCC = correlation (euclidean distances, cophenetic distances)
+c3 = cophenetic(h3)
+cor(distance, c3)
+```
+
+```{r}
+
+# What linkage prefer? For the clusters found for this linkage find the median (or mean, if you prefer) of each numerical column (on the original un-scaled dataset). Write one sentence characterizing each cluster for this linkage.
+
+print('I perfer ward.D because the corrlation is the smallest.')
+aggregate(df, list(cut1), median)
+```
+
+## Group 1 have high rate on cost of living, but low on Health_Care and Recreation, maybe not a good choice if people want to relocate to area in this group.
+
+## Group 2 have low rate on Cost_Living, Total_Property, but high rate on crime, indicating thus area is not safe, and very poor.
+
+## Group 3 has high rate on climate, health care and total violent, but low on crime.
+
+## Group 4 has high rates on education, arts, health care and recreation, population_2000, Past_Job_Growth, and Fcast_Future_Job_Growth, indicating group 4 as very suited for living. People there should live happily.
